@@ -231,8 +231,11 @@ Respond ONLY with this JSON (no markdown, no extra text):
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}`);
   const data = await res.json();
-  const text = data.content.find(b => b.type === "text")?.text || "{}";
-  return JSON.parse(text.replace(/```json|```/g, "").trim());
+  const content = data?.content || data?.body?.content || data?.message?.content || [];
+  const textBlock = Array.isArray(content) ? content.find(b => b.type === "text") : null;
+  const text = textBlock?.text || (typeof data === "string" ? data : "{}");
+  const clean = text.replace(/```json|```/g, "").trim();
+  return JSON.parse(clean || "{}");
 }
 
 // ═══════════════════════════════════════════════════════
@@ -299,8 +302,11 @@ Respond ONLY with this JSON (no markdown, no extra text):
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}`);
   const data = await res.json();
-  const text = data.content.find(b => b.type === "text")?.text || "{}";
-  return JSON.parse(text.replace(/```json|```/g, "").trim());
+  const content = data?.content || data?.body?.content || data?.message?.content || [];
+  const textBlock = Array.isArray(content) ? content.find(b => b.type === "text") : null;
+  const text = textBlock?.text || (typeof data === "string" ? data : "{}");
+  const clean = text.replace(/```json|```/g, "").trim();
+  return JSON.parse(clean || "{}");
 }
 
 // ═══════════════════════════════════════════════════════
