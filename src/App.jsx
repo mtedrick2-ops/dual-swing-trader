@@ -221,12 +221,11 @@ Respond ONLY with this JSON (no markdown, no extra text):
   "skipReason": "<if SKIP only>"
 }`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 800,
+      apiKey,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -290,12 +289,11 @@ Respond ONLY with this JSON (no markdown, no extra text):
   "skipReason": "<if SKIP only>"
 }`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 800,
+      apiKey,
       messages: [{ role: "user", content: prompt }],
     }),
   });
