@@ -100,50 +100,63 @@ async function fetchBTC() {
 // ═══════════════════════════════════════════════════════
 async function fetchPolygon(ticker) {
   try {
-    // Get last 60 daily bars
+    // Step 1: Get current price from Snapshot endpoint (15-min delayed, Starter tier)
+    const snapRes = await fetch(
+      `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}?apiKey=${POLYGON_KEY}`
+    );
+    if (!snapRes.ok) throw new Error(`Polygon snapshot ${snapRes.status}`);
+    const snapData = await snapRes.json();
+    const snap = snapData?.ticker;
+    if (!snap) throw new Error("No snapshot data");
+
+    const currentPrice = snap?.day?.c || snap?.prevDay?.c || snap?.lastTrade?.p;
+    const prevClose = snap?.prevDay?.c || currentPrice;
+    const todayVol = snap?.day?.v || 0;
+    const change = prevClose ? +((currentPrice - prevClose) / prevClose * 100).toFixed(2) : 0;
+
+    // Step 2: Get historical bars for technical indicator calculations
     const end   = new Date();
     const start = new Date(); start.setDate(start.getDate() - 90);
     const fmt   = d => d.toISOString().split("T")[0];
 
-    const res = await fetch(
+    const barsRes = await fetch(
       `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${fmt(start)}/${fmt(end)}?adjusted=true&sort=asc&limit=60&apiKey=${POLYGON_KEY}`
     );
-    if (!res.ok) throw new Error(`Polygon ${res.status}`);
-    const data = await res.json();
-    const bars = data.results || [];
+    if (!barsRes.ok) throw new Error(`Polygon bars ${barsRes.status}`);
+    const barsData = await barsRes.json();
+    const bars = barsData.results || [];
     if (bars.length < 10) throw new Error("Not enough bars");
 
     const closes  = bars.map(b => b.c);
     const volumes = bars.map(b => b.v);
-    const price   = closes[closes.length - 1];
+
+    // Replace last close with current live price for accurate indicator calculation
+    closes[closes.length - 1] = currentPrice;
+
     const sma10   = calcSMA(closes, 10);
     const sma20   = calcSMA(closes, 20);
     const sma50   = calcSMA(closes, 50);
-    const smaBullish = sma10 > sma20 && sma20 > sma50 && price > sma10;
+    const smaBullish = sma10 > sma20 && sma20 > sma50 && currentPrice > sma10;
 
     // Detect flag: big move then consolidation
-    const recentMove  = +((price - closes[closes.length - 20]) / closes[closes.length - 20] * 100).toFixed(1);
+    const recentMove  = +((currentPrice - closes[closes.length - 20]) / closes[closes.length - 20] * 100).toFixed(1);
     const last5High   = Math.max(...closes.slice(-5));
     const last5Low    = Math.min(...closes.slice(-5));
-    const consolidating = (last5High - last5Low) / last5Low < 0.04; // within 4%
+    const consolidating = (last5High - last5Low) / last5Low < 0.04;
 
-    // Volume spike: today's volume vs 20-day avg
-    const avgVol     = volumes.slice(-20,-1).reduce((a,b) => a+b,0) / 19;
-    const todayVol   = volumes[volumes.length-1];
-    const volumeSpike= todayVol > avgVol * 1.5;
+    // Volume spike: today vs 20-day avg
+    const avgVol = volumes.slice(-20,-1).reduce((a,b) => a+b,0) / 19;
+    const volumeSpike = todayVol > avgVol * 1.5;
 
-    const change = closes.length >= 2 ? +((price - closes[closes.length-2]) / closes[closes.length-2] * 100).toFixed(2) : 0;
-
-    // SPY check — simplified: use smaBullish as proxy
     const spy = smaBullish ? "bullish" : "neutral";
 
     return {
-      price: +price.toFixed(2), change, spy,
+      price: +currentPrice.toFixed(2), change, spy,
       sector: "Technology", sectorRank: 1,
       marketCap: "Large", avgVol: Math.round(avgVol).toLocaleString(),
       recentMove, consolidating, volumeSpike, smaBullish,
       sma10: +sma10.toFixed(2), sma20: +sma20.toFixed(2), sma50: +sma50.toFixed(2),
-      context: `Live Polygon data — ${ticker}`,
+      context: `Live Polygon snapshot — ${ticker} (15-min delayed)`,
     };
   } catch(e) {
     return fallbackBreakout(ticker, e.message);
@@ -230,12 +243,18 @@ Respond ONLY with this JSON (no markdown, no extra text):
     }),
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}`);
-  const data = await res.json();
-  const content = data?.content || data?.body?.content || data?.message?.content || [];
-  const textBlock = Array.isArray(content) ? content.find(b => b.type === "text") : null;
-  const text = textBlock?.text || (typeof data === "string" ? data : "{}");
+  const raw = await res.text();
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { throw new Error("Bad JSON from proxy"); }
+  let text = "{}";
+  if (data?.content && Array.isArray(data.content)) {
+    const block = data.content.find(b => b.type === "text");
+    if (block?.text) text = block.text;
+  } else if (typeof data === "string") {
+    text = data;
+  }
   const clean = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(clean || "{}");
+  try { return JSON.parse(clean); } catch(e) { throw new Error("Claude returned invalid JSON: " + clean.slice(0,100)); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -301,12 +320,18 @@ Respond ONLY with this JSON (no markdown, no extra text):
     }),
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}`);
-  const data = await res.json();
-  const content = data?.content || data?.body?.content || data?.message?.content || [];
-  const textBlock = Array.isArray(content) ? content.find(b => b.type === "text") : null;
-  const text = textBlock?.text || (typeof data === "string" ? data : "{}");
+  const raw = await res.text();
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { throw new Error("Bad JSON from proxy"); }
+  let text = "{}";
+  if (data?.content && Array.isArray(data.content)) {
+    const block = data.content.find(b => b.type === "text");
+    if (block?.text) text = block.text;
+  } else if (typeof data === "string") {
+    text = data;
+  }
   const clean = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(clean || "{}");
+  try { return JSON.parse(clean); } catch(e) { throw new Error("Claude returned invalid JSON: " + clean.slice(0,100)); }
 }
 
 // ═══════════════════════════════════════════════════════

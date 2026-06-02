@@ -11,9 +11,8 @@ export default async function handler(req, res) {
     const { messages, apiKey } = req.body || {};
     const key = apiKey || process.env.ANTHROPIC_API_KEY;
 
-    if (!key) {
-      return res.status(400).json({ error: "No API key" });
-    }
+    if (!key) return res.status(400).json({ error: "No API key" });
+    if (!messages) return res.status(400).json({ error: "No messages" });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -29,8 +28,16 @@ export default async function handler(req, res) {
       }),
     });
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    const responseText = await response.text();
+    
+    if (!response.ok) {
+      return res.status(response.status).json({ error: responseText });
+    }
+
+    // Parse and re-send to ensure clean JSON
+    const parsed = JSON.parse(responseText);
+    return res.status(200).json(parsed);
+    
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
