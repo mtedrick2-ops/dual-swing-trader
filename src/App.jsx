@@ -234,11 +234,17 @@ Respond ONLY with this JSON (no markdown, no extra text):
   "skipReason": "<if SKIP only>"
 }`;
 
-  const res = await fetch("/api/claude", {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
     body: JSON.stringify({
-      apiKey,
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -258,7 +264,6 @@ Respond ONLY with this JSON (no markdown, no extra text):
 }
 
 // ═══════════════════════════════════════════════════════
-// MODEL 2 — BREAKOUT (Video 2)
 // ═══════════════════════════════════════════════════════
 async function runBreakoutModel(ticker, mkt, account, apiKey) {
   const riskDollars = account * 0.01;
@@ -311,11 +316,17 @@ Respond ONLY with this JSON (no markdown, no extra text):
   "skipReason": "<if SKIP only>"
 }`;
 
-  const res = await fetch("/api/claude", {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
     body: JSON.stringify({
-      apiKey,
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
